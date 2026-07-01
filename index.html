@@ -95,7 +95,7 @@ th{background:linear-gradient(180deg,#f8fafc,#eef2ff);color:#475569}.badge{box-s
       <select id="roleSelect">
         <option value="admin">Admin</option>
         <option value="buyer">Buyer / Purchase Team</option>
-        <option value="approver">Approver / Management</option>
+        <option value="approver"></option>
         <option value="vendor">Vendor</option>
       </select>
       <label style="margin-top:10px">Active Vendor View</label>
@@ -105,8 +105,8 @@ th{background:linear-gradient(180deg,#f8fafc,#eef2ff);color:#475569}.badge{box-s
       <button class="active" data-view="dashboard">Dashboard</button>
       <button data-view="create">Create Purchase Order</button>
       <button data-view="orders">Purchase Orders</button>
-      <button data-view="approvals">Approval Center</button>
-      <button data-view="vendorPortal">Vendor Mobile Portal</button>
+      
+      <button data-view="vendorPortal">Vendor Portal</button>
       <button data-view="vendors">Vendor Directory</button>
       <button data-view="products">Product Master</button>
       <button data-view="reports">Reports & Export</button>
@@ -116,7 +116,7 @@ th{background:linear-gradient(180deg,#f8fafc,#eef2ff);color:#475569}.badge{box-s
 
   <main class="main">
     <div class="top">
-      <div><h2 id="pageTitle">Dashboard</h2><p id="pageSub">Real-time purchase order, approval and dispatch monitoring.</p></div>
+      <div><h2 id="pageTitle">Dashboard</h2><p id="pageSub">Real-time purchase order and dispatch monitoring.</p></div>
       <div class="actions">
         <button class="btn secondary" onclick="seedDemo()">Load Excel Products</button>
         <button class="btn secondary" onclick="clearAll()">Clear Data</button>
@@ -295,7 +295,7 @@ function showView(v){
  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
  document.querySelectorAll('.view').forEach(x=>x.classList.add('hidden'));
  $('view-'+v).classList.remove('hidden');
- const titles={dashboard:['Dashboard','Real-time purchase order, approval and dispatch monitoring.'],create:['Create Purchase Order','Create, approve and send purchase orders to vendors.'],orders:['Purchase Orders','Buyer view with status, ageing and vendor dispatch updates.'],approvals:['Approval Center','Review, approve or reject submitted purchase orders.'],vendorPortal:['Vendor Mobile Portal','Vendor can update dispatch, invoice, LR / Bilty and delay details.'],vendors:['Vendor Directory','Maintain vendor GST, contact and rating information.'],products:['Product Master','Maintain SKU, size, carton packing, supplier, category and HSN.'],reports:['Reports & Export','Download Excel reports and vendor scorecards.'],settings:['Settings','Company, WhatsApp and approval preferences.']};
+ const titles={dashboard:['Dashboard','Real-time purchase order and dispatch monitoring.'],create:['Create Purchase Order','Create, approve and send purchase orders to vendors.'],orders:['Purchase Orders','Buyer view with status, ageing and vendor dispatch updates.'],approvals:['Approval Center','Review, approve or reject submitted purchase orders.'],vendorPortal:['Vendor Portal','Vendor can update dispatch, invoice, LR / Bilty and delay details.'],vendors:['Vendor Directory','Maintain vendor GST, contact and rating information.'],products:['Product Master','Maintain SKU, size, carton packing, supplier, category and HSN.'],reports:['Reports & Export','Download Excel reports and vendor scorecards.'],settings:['Settings','Company and WhatsApp preferences.']};
  $('pageTitle').textContent=titles[v][0]; $('pageSub').textContent=titles[v][1];
  renderAll();
 }
@@ -305,11 +305,7 @@ function applyRole(){
  if(r==='vendor'){
    document.querySelectorAll('.nav button').forEach(b=>b.style.display=(b.dataset.view==='vendorPortal'||b.dataset.view==='dashboard')?'block':'none');
    showView('vendorPortal');
- }
- if(r==='approver'){
-   document.querySelectorAll('.nav button').forEach(b=>b.style.display=(['dashboard','approvals','orders','reports'].includes(b.dataset.view))?'block':'none');
- }
-}
+ }}
 
 function renderAll(){
  renderSelects(); renderDashboard(); renderVendors(); renderProducts(); renderOrders(); renderApprovals(); renderVendorPortal(); renderVendorScorecard(); loadSettings();
