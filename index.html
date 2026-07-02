@@ -7,6 +7,89 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module">
+/* ===== Firebase Firestore Cloud Sync =====
+   Har PO / Product / Vendor yahan Firestore mein save hota hai taaki data
+   kabhi lost na ho aur multiple devices se access ho sake. */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD4K3mqcLyQ2PTzWxol_WrekcLL-B-Q42E",
+  authDomain: "bbpo-23415.firebaseapp.com",
+  projectId: "bbpo-23415",
+  storageBucket: "bbpo-23415.firebasestorage.app",
+  messagingSenderId: "272172587360",
+  appId: "1:272172587360:web:0e2161037cf5560c73a605",
+  measurementId: "G-NDMHFLGXDV"
+};
+
+const CLOUD_KEYS = ['pf_vendors_excel_v4','pf_products_excel_v4','pf_orders_excel_v4','pf_settings'];
+const COLLECTION = 'procureflow_data';
+
+window.__pfStore = window.__pfStore || {};
+window.__pfCloudStatus = 'connecting';
+window.__pfBooted = false;
+
+function setStatus(s){
+  window.__pfCloudStatus = s;
+  if (window.updateCloudStatusUI) window.updateCloudStatusUI();
+}
+
+function tryBoot(){
+  if (window.__pfBooted) return;
+  window.__pfBooted = true;
+  if (window.__pfBootApp) window.__pfBootApp();
+}
+
+try{
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const readyKeys = new Set();
+  function markReady(k){
+    readyKeys.add(k);
+    if (readyKeys.size === CLOUD_KEYS.length) { setStatus('connected'); tryBoot(); }
+  }
+
+  CLOUD_KEYS.forEach(k=>{
+    const ref = doc(db, COLLECTION, k);
+    onSnapshot(ref, (snap)=>{
+      if (snap.exists()){
+        const data = snap.data();
+        window.__pfStore[k] = data.value;
+        try{ localStorage.setItem(k, JSON.stringify(data.value)); }catch(e){}
+      }
+      markReady(k);
+      if (window.__pfBooted && window.renderAll) window.renderAll();
+    }, (err)=>{
+      console.error('Firestore sync error for', k, err);
+      setStatus('error');
+      markReady(k);
+    });
+  });
+
+  window.__pfSaveToCloud = function(key, value){
+    if (!CLOUD_KEYS.includes(key)) return;
+    const ref = doc(db, COLLECTION, key);
+    let safe;
+    try{ safe = value===undefined ? null : JSON.parse(JSON.stringify(value)); }catch(e){ safe = null; }
+    setDoc(ref, { value: safe, updatedAt: serverTimestamp() }).catch(err=>{
+      console.error('Cloud save failed for', key, err);
+      setStatus('error');
+    });
+  };
+
+  // Agar internet slow/band ho to bhi app local data se chal jaaye
+  setTimeout(()=>{
+    if (!window.__pfBooted){ setStatus(window.__pfCloudStatus==='connecting' ? 'offline' : window.__pfCloudStatus); tryBoot(); }
+  }, 6000);
+}catch(err){
+  console.error('Firebase init failed', err);
+  setStatus('error');
+  setTimeout(tryBoot, 300);
+}
+</script>
 <style>
 :root{
   --bg:#f4f6fb;--panel:#ffffff;--panel2:#f8fafc;--ink:#172033;--muted:#667085;
@@ -85,6 +168,7 @@ th{background:linear-gradient(180deg,#f8fafc,#eef2ff);color:#475569}.badge{box-s
 </style>
 </head>
 <body>
+<div id="cloudLoadingOverlay" style="position:fixed;inset:0;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:Inter,system-ui,Arial,sans-serif;font-weight:800;font-size:15px;letter-spacing:.02em">☁ Loading data from cloud...</div>
 <div class="app">
   <aside class="sidebar">
     <div class="logo"><div class="logo-mark">PF</div><div><h1>ProcureFlow ERP</h1><p>Purchase • Vendor • Dispatch</p></div></div>
@@ -115,8 +199,9 @@ th{background:linear-gradient(180deg,#f8fafc,#eef2ff);color:#475569}.badge{box-s
     <div class="top">
       <div><h2 id="pageTitle">Dashboard</h2><p id="pageSub">Real-time purchase order, approval and dispatch monitoring.</p></div>
       <div class="actions">
+        <span class="pill" id="cloudStatusPill">☁ Connecting...</span>
         <button class="btn secondary" onclick="seedDemo()">Load Excel Products</button>
-        <button class="btn secondary" onclick="clearAll()">Clear Data</button>
+        <button class="btn secondary" onclick="clearAll()">Clear Local Cache</button>
         <button class="btn" onclick="print()">Print / Save PDF</button>
       </div>
     </div>
@@ -287,8 +372,16 @@ const $=id=>document.getElementById(id);
 const money=n=>Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const todayISO=()=>new Date().toISOString().slice(0,10);
 const addDays=n=>{let d=new Date();d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
-function get(k,d=[]){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}}
-function set(k,v){localStorage.setItem(k,JSON.stringify(v))}
+function get(k,d=[]){
+ if(window.__pfStore && Object.prototype.hasOwnProperty.call(window.__pfStore,k)) return window.__pfStore[k];
+ try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}
+}
+function set(k,v){
+ window.__pfStore=window.__pfStore||{}; window.__pfStore[k]=v;
+ try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}
+ if(window.__pfSaveToCloud) window.__pfSaveToCloud(k,v);
+}
+function cloudKeyExists(k){return !!(window.__pfStore && Object.prototype.hasOwnProperty.call(window.__pfStore,k))}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function ageDays(o){let base=o.due_date||o.date;return Math.max(0,Math.floor((new Date(todayISO())-new Date(base))/86400000))}
 function dispatchTotals(o){let ordered=0, shipped=0; o.items.forEach(i=>{ordered+=+i.qty||0; shipped+=+i.dispatched||0}); return {ordered, shipped, balance:Math.max(ordered-shipped,0)}}
@@ -330,6 +423,15 @@ function applyRole(){
 function renderAll(){
  renderSelects(); renderDashboard(); renderVendors(); renderProducts(); renderOrders(); renderApprovals(); renderVendorPortal(); renderVendorScorecard(); loadSettings();
 }
+function updateCloudStatusUI(){
+ let el=$('cloudStatusPill'); if(!el) return;
+ let s=window.__pfCloudStatus;
+ if(s==='connected'){ el.textContent='☁ Synced to Cloud'; el.style.background='#dcfce7'; el.style.color='#166534'; }
+ else if(s==='offline'){ el.textContent='⚠ Offline (local only)'; el.style.background='#fef9c3'; el.style.color='#854d0e'; }
+ else if(s==='error'){ el.textContent='⚠ Cloud sync error'; el.style.background='#fee2e2'; el.style.color='#991b1b'; }
+ else { el.textContent='☁ Connecting...'; el.style.background='#e0f2fe'; el.style.color='#0369a1'; }
+}
+window.updateCloudStatusUI=updateCloudStatusUI;
 function supplierDisplayName(s){return extractSupplierName ? extractSupplierName(s) : String(s||'').slice(0,80)}
 function selectedPOSupplier(){
  const vendorId=$('poVendor') ? $('poVendor').value : '';
@@ -574,7 +676,32 @@ function seedDemo(){
  renderAll();
 }
 function clearAll(){if(confirm('Clear all locally saved PO Manager data?')){Object.values(K).forEach(k=>localStorage.removeItem(k)); location.reload()}}
-(function init(){ if(localStorage.getItem(K.productVersion)!=='20260618_excel_368_v4'){set(K.products, INITIAL_PRODUCT_IMPORT.map((p,i)=>{let q={...p,id:'excel_product_'+(i+1)}; delete q.rate; delete q.gst; return q;})); localStorage.setItem(K.productVersion,'20260618_excel_368_v4'); set(K.orders,[]);} if(localStorage.getItem(K.vendorVersion)!=='20260702_suppliers_v5_logins'){set(K.vendors,[]); syncVendorsFromProducts(); localStorage.setItem(K.vendorVersion,'20260702_suppliers_v5_logins');} $('poDue').value=addDays(7); addPoItem(); renderAll(); applyRole(); })();
+function bootApp(){
+ // Cloud (Firestore) hi truth ka source hai. Sirf tab seed karo jab Firestore mein
+ // us key ke liye koi document hi na ho — isse kisi bhi device ka existing PO/Product
+ // data kabhi overwrite/lost nahi hota.
+ if(!cloudKeyExists(K.products)){
+   let cur=get(K.products,[]);
+   if(!cur.length) cur=INITIAL_PRODUCT_IMPORT.map((p,i)=>{let q={...p,id:'excel_product_'+(i+1)}; delete q.rate; delete q.gst; return q;});
+   set(K.products,cur);
+ }
+ if(!cloudKeyExists(K.orders)){
+   set(K.orders,get(K.orders,[]));
+ }
+ if(!cloudKeyExists(K.vendors)){
+   let cur=get(K.vendors,[]);
+   set(K.vendors,cur);
+   if(!cur.length) syncVendorsFromProducts();
+ }
+ if(!cloudKeyExists(K.settings)){
+   set(K.settings,get(K.settings,{company:'Bankey Bihari Herbs and Spices Pvt. Ltd.',brand:'Tota FMCG Purchase Division',wa:'',approval:'yes'}));
+ }
+ $('poDue').value=addDays(7); addPoItem(); renderAll(); applyRole(); updateCloudStatusUI();
+ let ov=$('cloudLoadingOverlay'); if(ov) ov.remove();
+}
+window.__pfBootApp=bootApp;
+// Agar Firebase module script kabhi load hi na ho paaye (network block ho), to bhi app local data se chal jaaye.
+setTimeout(()=>{ if(!window.__pfBooted){ window.__pfBooted=true; window.__pfCloudStatus=window.__pfCloudStatus||'offline'; bootApp(); } }, 8000);
 </script>
 </body>
 </html>
