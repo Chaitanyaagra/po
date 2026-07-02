@@ -57,8 +57,6 @@ tr:last-child td{border-bottom:0}
 .item-row{display:grid;grid-template-columns:minmax(280px,1.4fr) 110px minmax(260px,1fr) minmax(220px,1fr) 40px;gap:10px;align-items:end;border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:#fbfdff}
 .hidden{display:none!important}
 .small{font-size:12px;color:var(--muted)}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.right{text-align:right}
-.mobile-shell{max-width:430px;margin:0 auto;background:#fff;border:10px solid #111827;border-radius:34px;overflow:hidden;box-shadow:0 22px 55px rgba(0,0,0,.22)}
-.mobile-head{background:#111827;color:#fff;padding:16px}.mobile-body{padding:14px;background:#f8fafc}
 .po-card{border:1px solid var(--line);border-radius:15px;background:#fff;margin-bottom:12px;overflow:hidden}
 .po-head{padding:14px;background:#f8fafc;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}
 .po-body{padding:14px}.log{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px}
@@ -81,7 +79,7 @@ input,select,textarea{border-color:#d7deea;box-shadow:0 1px 0 rgba(15,23,42,.03)
 .item-row{background:linear-gradient(180deg,#ffffff,#f8fbff);border-color:#dbeafe;box-shadow:0 10px 26px rgba(30,64,175,.06)}
 .po-flow-note{background:linear-gradient(135deg,#eff6ff,#f5f3ff);border-color:#c7d2fe;color:#1e1b4b}.po-header-grid{align-items:end}
 th{background:linear-gradient(180deg,#f8fafc,#eef2ff);color:#475569}.badge{box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)}
-.mobile-shell{box-shadow:0 28px 70px rgba(15,23,42,.28)}.mobile-head{background:linear-gradient(135deg,#0f172a,#2563eb)}
+
 @media(max-width:900px){.top h2{font-size:24px}.top{padding:15px}.card{padding:16px}}
 
 </style>
@@ -95,7 +93,6 @@ th{background:linear-gradient(180deg,#f8fafc,#eef2ff);color:#475569}.badge{box-s
       <select id="roleSelect">
         <option value="admin">Admin</option>
         <option value="buyer">Buyer / Purchase Team</option>
-        <option value="approver">Approver / Management</option>
         <option value="vendor">Vendor</option>
       </select>
       <label style="margin-top:10px">Active Vendor View</label>
@@ -106,7 +103,7 @@ th{background:linear-gradient(180deg,#f8fafc,#eef2ff);color:#475569}.badge{box-s
       <button data-view="create">Create Purchase Order</button>
       <button data-view="orders">Purchase Orders</button>
       <button data-view="approvals">Approval Center</button>
-      <button data-view="vendorPortal">Vendor Mobile Portal</button>
+      <button data-view="vendorPortal">Vendor Portal</button>
       <button data-view="vendors">Vendor Directory</button>
       <button data-view="products">Product Master</button>
       <button data-view="reports">Reports & Export</button>
@@ -173,12 +170,24 @@ th{background:linear-gradient(180deg,#f8fafc,#eef2ff);color:#475569}.badge{box-s
     </section>
 
     <section id="view-vendorPortal" class="view hidden">
-      <div class="mobile-shell">
-        <div class="mobile-head"><b>Vendor Portal</b><div class="small">Mobile view for vendors</div></div>
-        <div class="mobile-body">
-          <label>Select Vendor<select id="vendorPortalSelect"></select></label>
-          <div id="vendorPortalOrders"></div>
+      <div id="vendorPortalLogin" class="card hidden">
+        <h3>Vendor Login</h3>
+        <p class="small">Each vendor has a separate login ID and password. Vendors can only view and update their own purchase orders.</p>
+        <div class="grid cols3">
+          <label>Login ID<input id="vpLoginUser" placeholder="Vendor login ID"></label>
+          <label>Password<input id="vpLoginPass" type="password" placeholder="Password"></label>
+          <label>&nbsp;<button class="btn" onclick="vendorLogin()">Login</button></label>
         </div>
+        <p id="vpLoginMsg" class="small"></p>
+      </div>
+      <div id="vendorPortalApp" class="hidden">
+        <div class="card">
+          <div class="top" style="margin:0">
+            <div><h3 id="vpVendorName" style="margin:0"></h3><p class="small" style="margin:4px 0 0">Update dispatch, invoice, LR / Bilty and delay details against your assigned purchase orders.</p></div>
+            <button class="btn secondary" onclick="vendorLogout()">Logout</button>
+          </div>
+        </div>
+        <div class="card"><div id="vendorPortalOrders"></div></div>
       </div>
     </section>
 
@@ -192,11 +201,20 @@ th{background:linear-gradient(180deg,#f8fafc,#eef2ff);color:#475569}.badge{box-s
           <label>Email<input id="vendorEmail" placeholder="Email"></label>
           <label>Credit Days<input id="vendorCredit" type="number" value="15"></label>
           <label>Rating<select id="vendorRating"><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select></label>
+          <label>Portal Login ID<input id="vendorUsername" placeholder="Unique login ID for vendor"></label>
+          <label>Portal Password<input id="vendorPassword" placeholder="Login password" type="text"></label>
         </div>
         <label>Address<textarea id="vendorAddress"></textarea></label>
         <button class="btn" onclick="saveVendor()">Save Vendor</button>
       </div>
-      <div class="card"><h3>Saved Vendors</h3><div id="vendorTable"></div></div>
+      <div class="card">
+        <h3>Saved Vendors</h3>
+        <div class="toolbar">
+          <button class="btn secondary" onclick="assignMissingLogins(); renderAll();">Generate Missing Logins</button>
+          <button class="btn secondary" onclick="exportVendorLogins()">Download Vendor Logins (Excel)</button>
+        </div>
+        <div id="vendorTable"></div>
+      </div>
     </section>
 
     <section id="view-products" class="view hidden">
@@ -288,26 +306,24 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>showView(b.dat
 $('roleSelect').onchange=()=>{applyRole(); renderAll()};
 ['filterVendor','filterStatus','filterAge','filterSearch'].forEach(id=>$(id).addEventListener('input',renderOrders));
 $('activeVendorSelect').onchange=renderAll;
-$('vendorPortalSelect').onchange=renderVendorPortal;
 if($('poVendor')) $('poVendor').onchange=()=>{ renderSelects(); document.querySelectorAll('#poItems .item-row').forEach(r=>{let inp=r.querySelector('.product-search'); if(inp){inp.value=''; delete inp.dataset.pid;} let detail=r.querySelector('.product-detail'); if(detail) detail.value='';}); };
 
 function showView(v){
  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
  document.querySelectorAll('.view').forEach(x=>x.classList.add('hidden'));
  $('view-'+v).classList.remove('hidden');
- const titles={dashboard:['Dashboard','Real-time purchase order, approval and dispatch monitoring.'],create:['Create Purchase Order','Create, approve and send purchase orders to vendors.'],orders:['Purchase Orders','Buyer view with status, ageing and vendor dispatch updates.'],approvals:['Approval Center','Review, approve or reject submitted purchase orders.'],vendorPortal:['Vendor Mobile Portal','Vendor can update dispatch, invoice, LR / Bilty and delay details.'],vendors:['Vendor Directory','Maintain vendor GST, contact and rating information.'],products:['Product Master','Maintain SKU, size, carton packing, supplier, category and HSN.'],reports:['Reports & Export','Download Excel reports and vendor scorecards.'],settings:['Settings','Company, WhatsApp and approval preferences.']};
+ const titles={dashboard:['Dashboard','Real-time purchase order, approval and dispatch monitoring.'],create:['Create Purchase Order','Create, approve and send purchase orders to vendors.'],orders:['Purchase Orders','Buyer view with status, ageing and vendor dispatch updates.'],approvals:['Approval Center','Review, approve or reject submitted purchase orders.'],vendorPortal:['Vendor Portal','Vendor can update dispatch, invoice, LR / Bilty and delay details.'],vendors:['Vendor Directory','Maintain vendor GST, contact and rating information.'],products:['Product Master','Maintain SKU, size, carton packing, supplier, category and HSN.'],reports:['Reports & Export','Download Excel reports and vendor scorecards.'],settings:['Settings','Company, WhatsApp and approval preferences.']};
  $('pageTitle').textContent=titles[v][0]; $('pageSub').textContent=titles[v][1];
  renderAll();
 }
 function applyRole(){
  const r=currentRole();
  document.querySelectorAll('.nav button').forEach(b=>b.style.display='block');
+ $('activeVendorSelect').closest('.userbox').querySelectorAll('label')[1].style.display=r==='vendor'?'none':'block';
+ $('activeVendorSelect').style.display=r==='vendor'?'none':'block';
  if(r==='vendor'){
-   document.querySelectorAll('.nav button').forEach(b=>b.style.display=(b.dataset.view==='vendorPortal'||b.dataset.view==='dashboard')?'block':'none');
+   document.querySelectorAll('.nav button').forEach(b=>b.style.display=b.dataset.view==='vendorPortal'?'block':'none');
    showView('vendorPortal');
- }
- if(r==='approver'){
-   document.querySelectorAll('.nav button').forEach(b=>b.style.display=(['dashboard','approvals','orders','reports'].includes(b.dataset.view))?'block':'none');
  }
 }
 
@@ -332,7 +348,7 @@ function findProductByInput(value){let v=String(value||'').trim().toLowerCase();
 function renderSelects(){
  let vs=vendors(), ps=products();
  let optsV='<option value="">All Vendors</option>'+vs.map(v=>`<option value="${v.id}">${esc(v.name)}</option>`).join('');
- ['activeVendorSelect','filterVendor','vendorPortalSelect'].forEach(id=>{let old=$(id).value; $(id).innerHTML=optsV; if([...$(id).options].some(o=>o.value===old))$(id).value=old});
+ ['activeVendorSelect','filterVendor'].forEach(id=>{let old=$(id).value; $(id).innerHTML=optsV; if([...$(id).options].some(o=>o.value===old))$(id).value=old});
  if($('poVendor')){
    let oldVendor=$('poVendor').value;
    $('poVendor').innerHTML='<option value="">Select Vendor / Supplier</option>'+vs.map(v=>`<option value="${v.id}">${esc(v.name)}</option>`).join('');
@@ -405,9 +421,27 @@ function approvePO(id){let os=orders(); let o=os.find(x=>x.id===id); o.workflow=
 function rejectPO(id){let os=orders(); let o=os.find(x=>x.id===id); o.workflow='Rejected'; o.approval_status='Rejected'; set(K.orders,os); renderAll()}
 function sendPO(id){let os=orders(); let o=os.find(x=>x.id===id); if(o.approval_status!=='Rejected'){o.workflow='Sent'} set(K.orders,os); renderAll()}
 
+function vendorSession(){return sessionStorage.getItem('pf_vendor_session')||''}
+function vendorLogin(){
+ let u=($('vpLoginUser').value||'').trim().toLowerCase(), p=$('vpLoginPass').value||'';
+ if(!u||!p){$('vpLoginMsg').textContent='Enter login ID and password.';return}
+ let v=vendors().find(x=>String(x.username||'').trim().toLowerCase()===u && String(x.password||'')===p);
+ if(!v){$('vpLoginMsg').textContent='Invalid login ID or password.';return}
+ sessionStorage.setItem('pf_vendor_session',v.id); $('vpLoginMsg').textContent=''; $('vpLoginUser').value=''; $('vpLoginPass').value='';
+ renderVendorPortal();
+}
+function vendorLogout(){sessionStorage.removeItem('pf_vendor_session'); renderVendorPortal();}
 function renderVendorPortal(){
- let vid=$('vendorPortalSelect').value||$('activeVendorSelect').value; let os=orders().filter(o=>(!vid||o.vendor_id===vid)&&['Approved','Sent'].includes(o.workflow)||(!vid||o.vendor_id===vid)&&['partial','completed'].includes(status(o)));
- $('vendorPortalOrders').innerHTML=os.length?os.map(o=>vendorPOHtml(o)).join(''):'<p class="small">No assigned purchase orders found for this vendor.</p>';
+ if(!$('vendorPortalLogin'))return;
+ let vid=vendorSession(); let v=vendors().find(x=>x.id===vid);
+ if(!v){
+   $('vendorPortalLogin').classList.remove('hidden'); $('vendorPortalApp').classList.add('hidden');
+   return;
+ }
+ $('vendorPortalLogin').classList.add('hidden'); $('vendorPortalApp').classList.remove('hidden');
+ $('vpVendorName').textContent=v.name;
+ let os=orders().filter(o=>o.vendor_id===vid&&(['Approved','Sent'].includes(o.workflow)||['partial','completed'].includes(status(o))));
+ $('vendorPortalOrders').innerHTML=os.length?os.map(o=>vendorPOHtml(o)).join(''):'<p class="small">No assigned purchase orders found for your account.</p>';
 }
 function vendorPOHtml(o){
  let t=dispatchTotals(o), c=ageClass(o);
@@ -423,11 +457,13 @@ function vendorDispatch(oid,iid){
 
 function saveVendor(){
  let vs=vendors(); let id='v_'+Date.now();
- vs.push({id,name:$('vendorName').value,gst:$('vendorGst').value,mobile:$('vendorMobile').value,email:$('vendorEmail').value,credit:$('vendorCredit').value,rating:$('vendorRating').value,address:$('vendorAddress').value});
- set(K.vendors,vs); ['vendorName','vendorGst','vendorMobile','vendorEmail','vendorAddress'].forEach(id=>$(id).value=''); renderAll();
+ let username=($('vendorUsername').value||'').trim();
+ if(username && vs.some(v=>String(v.username||'').trim().toLowerCase()===username.toLowerCase())){alert('This Portal Login ID is already used by another vendor. Please choose a unique login ID.'); return;}
+ vs.push({id,name:$('vendorName').value,gst:$('vendorGst').value,mobile:$('vendorMobile').value,email:$('vendorEmail').value,credit:$('vendorCredit').value,rating:$('vendorRating').value,address:$('vendorAddress').value,username,password:$('vendorPassword').value||''});
+ set(K.vendors,vs); ['vendorName','vendorGst','vendorMobile','vendorEmail','vendorAddress','vendorUsername','vendorPassword'].forEach(id=>$(id).value=''); renderAll();
 }
 function renderVendors(){
- let vs=vendors(); $('vendorTable').innerHTML=vs.length?`<div class="table-wrap"><table><thead><tr><th>Vendor</th><th>GSTIN</th><th>Mobile</th><th>Email</th><th>Credit Days</th><th>Rating</th><th></th></tr></thead><tbody>${vs.map(v=>`<tr><td><b>${esc(v.name)}</b><br><span class="small">${esc(v.address||'')}</span></td><td>${esc(v.gst)}</td><td>${esc(v.mobile)}</td><td>${esc(v.email)}</td><td>${esc(v.credit)}</td><td>${'★'.repeat(+v.rating||0)}</td><td><button class="btn danger" onclick="deleteVendor('${v.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="small">No vendors saved yet.</p>';
+ let vs=vendors(); $('vendorTable').innerHTML=vs.length?`<div class="table-wrap"><table><thead><tr><th>Vendor</th><th>GSTIN</th><th>Mobile</th><th>Email</th><th>Credit Days</th><th>Rating</th><th>Login ID</th><th>Password</th><th></th></tr></thead><tbody>${vs.map(v=>`<tr><td><b>${esc(v.name)}</b><br><span class="small">${esc(v.address||'')}</span></td><td>${esc(v.gst)}</td><td>${esc(v.mobile)}</td><td>${esc(v.email)}</td><td>${esc(v.credit)}</td><td>${'★'.repeat(+v.rating||0)}</td><td class="mono">${esc(v.username||'—')}</td><td class="mono">${esc(v.password||'—')}</td><td><button class="btn danger" onclick="deleteVendor('${v.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="small">No vendors saved yet.</p>';
 }
 function deleteVendor(id){set(K.vendors,vendors().filter(v=>v.id!==id)); renderAll()}
 
@@ -468,9 +504,34 @@ $('productImport').addEventListener('change',async e=>{
  set(K.products,ps.concat(imported)); alert(imported.length+' products imported successfully.'); renderAll(); e.target.value='';
 });
 function extractSupplierName(s){return String(s||'').split(' Address')[0].split(' A9-')[0].trim()||String(s||'').slice(0,60)}
+const VENDOR_LOGIN_SEED={
+ 'r.b. dyechem privet limited':{username:'rbdyechemp',password:'Vnd2824'},
+ 'radha kishan bishan dass rang rasayan pvt.ltd.':{username:'radhakisha',password:'Vnd1409'},
+ 'r.n food e-18 to 21, e-28 to e-31, industrial area salempur, hathras- 204102(u.p) india':{username:'rnfoode18t',password:'Vnd5506'},
+ 'vidhya colours pvt. ltd. an iso 9001:2015 certified company d 5-6, industrial ara, salempur hathras-204 102 (u.p.) india':{username:'vidhyacolo',password:'Vnd5012'},
+ 'r b industries':{username:'rbindustri',password:'Vnd4657'}
+};
+function slugUsername(name){let s=String(name||'').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10); return s||'vendor'}
+function genVendorCredentials(name,usedUsernames){
+ let seed=VENDOR_LOGIN_SEED[String(name||'').toLowerCase()];
+ let base=seed?seed.username:slugUsername(name);
+ let uname=base, i=1; while(usedUsernames.has(uname)){i++; uname=base+i;} usedUsernames.add(uname);
+ let pw=seed?seed.password:('Vnd'+Math.floor(1000+Math.random()*9000));
+ return {username:uname,password:pw};
+}
+function assignMissingLogins(){
+ let vs=vendors(); let used=new Set(vs.filter(v=>v.username).map(v=>v.username)); let changed=false;
+ vs.forEach(v=>{ if(!v.username){ let c=genVendorCredentials(v.name,used); v.username=c.username; v.password=v.password||c.password; changed=true; } });
+ if(changed) set(K.vendors,vs);
+ return changed;
+}
+function exportVendorLogins(){
+ let rows=vendors().map(v=>({'Vendor Name':v.name,'Login ID':v.username||'','Password':v.password||''}));
+ downloadXLSX(rows,'vendor-portal-logins.xlsx','Vendor Logins');
+}
 function syncVendorsFromProducts(){
- let vs=vendors(); let existing=new Set(vs.map(v=>String(v.name||'').toLowerCase())); let added=0;
- [...new Set(products().map(p=>p.supplier).filter(Boolean))].forEach((sup,i)=>{let name=extractSupplierName(sup); if(name && !existing.has(name.toLowerCase())){vs.push({id:'sup_'+Date.now()+'_'+i,name,gst:'',mobile:'',email:'',credit:15,rating:4,address:sup}); existing.add(name.toLowerCase()); added++;}});
+ let vs=vendors(); let existing=new Set(vs.map(v=>String(v.name||'').toLowerCase())); let usedUsernames=new Set(vs.filter(v=>v.username).map(v=>v.username)); let added=0;
+ [...new Set(products().map(p=>p.supplier).filter(Boolean))].forEach((sup,i)=>{let name=extractSupplierName(sup); if(name && !existing.has(name.toLowerCase())){let cred=genVendorCredentials(name,usedUsernames); vs.push({id:'sup_'+Date.now()+'_'+i,name,gst:'',mobile:'',email:'',credit:15,rating:4,address:sup,username:cred.username,password:cred.password}); existing.add(name.toLowerCase()); added++;}});
  if(added) set(K.vendors,vs);
 }
 function loadUploadedProductSheet(){
@@ -508,12 +569,12 @@ function seedDemo(){
  set(K.vendors,[]);
  syncVendorsFromProducts();
  localStorage.setItem(K.productVersion,'20260618_excel_368_v4');
- localStorage.setItem(K.vendorVersion,'20260618_suppliers_v4');
+ localStorage.setItem(K.vendorVersion,'20260702_suppliers_v5_logins');
  alert('Excel products loaded. Demo vendors like Sharma Packaging and Rajasthan Food Additives have been removed. Suppliers from Product Master are now available as vendors.');
  renderAll();
 }
 function clearAll(){if(confirm('Clear all locally saved PO Manager data?')){Object.values(K).forEach(k=>localStorage.removeItem(k)); location.reload()}}
-(function init(){ if(localStorage.getItem(K.productVersion)!=='20260618_excel_368_v4'){set(K.products, INITIAL_PRODUCT_IMPORT.map((p,i)=>{let q={...p,id:'excel_product_'+(i+1)}; delete q.rate; delete q.gst; return q;})); localStorage.setItem(K.productVersion,'20260618_excel_368_v4'); set(K.orders,[]);} if(localStorage.getItem(K.vendorVersion)!=='20260618_suppliers_v4'){set(K.vendors,[]); syncVendorsFromProducts(); localStorage.setItem(K.vendorVersion,'20260618_suppliers_v4');} $('poDue').value=addDays(7); addPoItem(); renderAll(); applyRole(); })();
+(function init(){ if(localStorage.getItem(K.productVersion)!=='20260618_excel_368_v4'){set(K.products, INITIAL_PRODUCT_IMPORT.map((p,i)=>{let q={...p,id:'excel_product_'+(i+1)}; delete q.rate; delete q.gst; return q;})); localStorage.setItem(K.productVersion,'20260618_excel_368_v4'); set(K.orders,[]);} if(localStorage.getItem(K.vendorVersion)!=='20260702_suppliers_v5_logins'){set(K.vendors,[]); syncVendorsFromProducts(); localStorage.setItem(K.vendorVersion,'20260702_suppliers_v5_logins');} $('poDue').value=addDays(7); addPoItem(); renderAll(); applyRole(); })();
 </script>
 </body>
 </html>
