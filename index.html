@@ -130,6 +130,9 @@ textarea{min-height:76px;resize:vertical}
 table{width:100%;border-collapse:collapse;background:#fff;font-size:13px;min-width:860px}
 th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);background:#f8fafc}
+.table-wrap thead th{position:sticky;top:0;z-index:1}
+.sortable-th{cursor:pointer;user-select:none;white-space:nowrap}
+.sortable-th:hover{color:var(--brand2)}
 tr:last-child td{border-bottom:0}
 .badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:900;text-transform:uppercase}
 .badge.draft{background:#f2f4f7;color:#344054}.badge.approval{background:#fef3c7;color:#92400e}
@@ -196,7 +199,7 @@ table td .btn,table td button{margin:2px 3px 2px 0;padding:7px 10px;font-size:12
 .kpi-click{cursor:pointer;transition:.15s ease}
 .kpi-click:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(15,23,42,.12);border-color:#93c5fd}
 .modal-overlay{position:fixed;inset:0;background:#0f172aee;z-index:8000;display:flex;align-items:center;justify-content:center;padding:20px}
-.modal-box{background:#fff;border-radius:18px;padding:26px;max-width:380px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.modal-box{background:#fff;border-radius:18px;padding:26px;max-width:420px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.35)}
 .modal-box h3{margin-top:0}
 .toast-banner{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:13px;padding:12px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px}
 </style>
@@ -205,12 +208,22 @@ table td .btn,table td button{margin:2px 3px 2px 0;padding:7px 10px;font-size:12
 <div id="cloudLoadingOverlay" style="position:fixed;inset:0;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:Inter,system-ui,Arial,sans-serif;font-weight:800;font-size:15px;letter-spacing:.02em">☁ Loading data from cloud...</div>
 <div id="roleAuthModal" class="modal-overlay hidden">
   <div class="modal-box">
-    <h3 id="roleAuthTitle">Admin Login</h3>
-    <p class="small">This area is password protected. Enter the password to continue.</p>
-    <label>Password<input type="password" id="roleAuthPass" placeholder="Enter password"></label>
+    <h3>ProcureFlow ERP Login</h3>
+    <p class="small">Select which role you are logging in as, then enter your username &amp; password.</p>
+    <label>Login As
+      <select id="roleAuthRoleSelect">
+        <option value="admin">Admin</option>
+        <option value="buyer">Buyer / Purchase Team</option>
+        <option value="vendor">Vendor</option>
+      </select>
+    </label>
+    <div class="grid cols2" style="margin-top:10px">
+      <label id="roleAuthUserLabel">Username<input id="roleAuthUser" placeholder="Username" autocomplete="username"></label>
+      <label>Password<input type="password" id="roleAuthPass" placeholder="Password" autocomplete="current-password"></label>
+    </div>
     <p id="roleAuthMsg" class="small" style="color:var(--red)"></p>
     <div style="display:flex;gap:10px;margin-top:8px">
-      <button class="btn" onclick="submitRoleAuth()">Unlock</button>
+      <button class="btn" style="flex:1" onclick="submitRoleAuth()">Login</button>
       <button class="btn secondary hidden" id="roleAuthCancelBtn" onclick="cancelRoleAuth()">Cancel</button>
     </div>
   </div>
@@ -262,6 +275,7 @@ table td .btn,table td button{margin:2px 3px 2px 0;padding:7px 10px;font-size:12
       </div>
       <div class="card"><h3>Pendency Trend (last 14 days)</h3><div id="trendChart"></div></div>
       <div class="card"><h3>Reorder Alerts</h3><p class="small">Products where the quantity currently in open Purchase Orders has fallen below the Reorder Level set in Product Master.</p><div id="reorderAlerts"></div></div>
+      <div class="card"><h3>Delayed Orders — Vendor Reminders</h3><p class="small">Vendors with orange/red ageing purchase orders. Click a button to send that vendor a WhatsApp reminder listing all their pending POs.</p><div id="delayedReminders"></div></div>
       <div class="card"><h3>Delayed / Open Purchase Orders</h3><div id="dashboardOrders"></div></div>
     </section>
 
@@ -350,6 +364,7 @@ table td .btn,table td button{margin:2px 3px 2px 0;padding:7px 10px;font-size:12
           <button class="btn secondary" onclick="copyVendorPortalLink()">Copy Vendor Portal Link</button>
         </div>
         <p class="small">Share the Vendor Portal Link with vendors — it opens a clean page showing only their own purchase orders and a login box, with no access to the rest of this system.</p>
+        <label>Search Vendor<input id="vendorSearch" placeholder="Name, GSTIN, mobile, email, login ID" oninput="renderVendors()"></label>
         <div id="vendorTable"></div>
       </div>
     </section>
@@ -434,6 +449,15 @@ table td .btn,table td button{margin:2px 3px 2px 0;padding:7px 10px;font-size:12
         </div>
         <button class="btn" onclick="savePasswordSettings()">Update Passwords</button>
       </div>
+      <div class="card" id="backupRestoreCard">
+        <h3>Backup &amp; Restore</h3>
+        <p class="small">Download a complete backup of all Purchase Orders, Vendors, Products, Settings and Activity Log as one file. Keep this safe — if anything ever goes wrong, you can restore your data from this file in seconds without depending on anyone else.</p>
+        <div class="grid cols2">
+          <label>&nbsp;<button class="btn success" onclick="exportFullBackup()">⬇ Download Full Backup (.json)</button></label>
+          <label>Restore from Backup File<input type="file" id="restoreFileInput" accept=".json" onchange="restoreFullBackup(this)"></label>
+        </div>
+        <p class="small" id="backupInfoText"></p>
+      </div>
     </section>
   </main>
 </div>
@@ -494,21 +518,57 @@ if($('poVendor')) $('poVendor').onchange=()=>{ renderSelects(); document.querySe
 let pendingRoleAuth=null;
 function staffAuthKey(role){ return role==='admin' ? 'pf_staff_admin_ok' : 'pf_staff_buyer_ok'; }
 function requireRoleAuth(role, isInitialBoot){
- if(role==='vendor'){ lastConfirmedRole='vendor'; applyRole(); if(!isInitialBoot) renderAll(); return; }
+ if(role==='vendor'){
+   if(vendorSession()){ lastConfirmedRole='vendor'; applyRole(); if(!isInitialBoot) renderAll(); return; }
+   openLoginGate('vendor', isInitialBoot);
+   return;
+ }
  if(sessionStorage.getItem(staffAuthKey(role))==='1'){ lastConfirmedRole=role; applyRole(); if(!isInitialBoot) renderAll(); return; }
- pendingRoleAuth=role;
- $('roleAuthTitle').textContent=(role==='admin'?'Admin':'Buyer / Purchase Team')+' Login';
- $('roleAuthPass').value=''; $('roleAuthMsg').textContent=''; $('roleAuthCancelBtn').classList.toggle('hidden', !!isInitialBoot);
- $('roleAuthModal').classList.remove('hidden');
- setTimeout(()=>$('roleAuthPass').focus(),50);
+ openLoginGate(role, isInitialBoot);
 }
+function openLoginGate(role, isInitialBoot){
+ pendingRoleAuth=role;
+ $('roleAuthRoleSelect').value=role;
+ updateRoleAuthFields();
+ $('roleAuthUser').value=''; $('roleAuthPass').value=''; $('roleAuthMsg').textContent='';
+ $('roleAuthCancelBtn').classList.toggle('hidden', !!isInitialBoot);
+ $('roleAuthModal').classList.remove('hidden');
+ setTimeout(()=>$('roleAuthUser').focus(),50);
+}
+function updateRoleAuthFields(){
+ let r=$('roleAuthRoleSelect').value;
+ if(r==='vendor'){ $('roleAuthUserLabel').firstChild.textContent='Login ID'; $('roleAuthUser').placeholder='Vendor login ID'; }
+ else { $('roleAuthUserLabel').firstChild.textContent='Username'; $('roleAuthUser').placeholder = r==='admin' ? 'admin' : 'buyer'; }
+}
+$('roleAuthRoleSelect').addEventListener('change', ()=>{
+ pendingRoleAuth=$('roleAuthRoleSelect').value;
+ updateRoleAuthFields();
+ $('roleAuthUser').value=''; $('roleAuthPass').value=''; $('roleAuthMsg').textContent='';
+ $('roleAuthUser').focus();
+});
 function submitRoleAuth(){
- let role=pendingRoleAuth; if(!role)return;
+ let role=pendingRoleAuth||$('roleAuthRoleSelect').value; if(!role)return;
+ let u=($('roleAuthUser').value||'').trim().toLowerCase();
+ let p=$('roleAuthPass').value||'';
+ if(!u||!p){ $('roleAuthMsg').textContent='Please enter username and password.'; return; }
+ if(role==='vendor'){
+   let v=vendors().find(x=>String(x.username||'').trim().toLowerCase()===u && String(x.password||'')===p);
+   if(!v){ $('roleAuthMsg').textContent='Invalid vendor login ID or password.'; $('roleAuthPass').value=''; return; }
+   sessionStorage.setItem('pf_vendor_session',v.id);
+   lastConfirmedRole='vendor';
+   $('roleSelect').value='vendor';
+   $('roleAuthModal').classList.add('hidden');
+   logActivity('Vendor Login', v.name+' logged into the vendor portal');
+   applyRole(); renderAll();
+   return;
+ }
  let s=settings();
- let correct = role==='admin' ? (s.adminPassword||'admin123') : (s.buyerPassword||'buyer123');
- if(($('roleAuthPass').value||'')!==correct){ $('roleAuthMsg').textContent='Incorrect password. Please try again.'; $('roleAuthPass').value=''; $('roleAuthPass').focus(); return; }
+ let correctUser = role; // 'admin' or 'buyer'
+ let correctPass = role==='admin' ? (s.adminPassword||'admin123') : (s.buyerPassword||'buyer123');
+ if(u!==correctUser || p!==correctPass){ $('roleAuthMsg').textContent='Incorrect username or password.'; $('roleAuthPass').value=''; $('roleAuthPass').focus(); return; }
  sessionStorage.setItem(staffAuthKey(role),'1');
  lastConfirmedRole=role;
+ $('roleSelect').value=role;
  $('roleAuthModal').classList.add('hidden');
  logActivity('Login', role==='admin'?'Admin logged in':'Buyer logged in');
  applyRole(); renderAll();
@@ -523,6 +583,7 @@ function lockStaffSession(){
  requireRoleAuth($('roleSelect').value);
 }
 $('roleAuthPass').addEventListener('keydown',e=>{ if(e.key==='Enter') submitRoleAuth(); });
+$('roleAuthUser').addEventListener('keydown',e=>{ if(e.key==='Enter') $('roleAuthPass').focus(); });
 
 
 function showView(v){
@@ -606,6 +667,7 @@ function renderDashboard(){
  if(!vendorFilter) snapshotDashboardHistory(open,delayed,completed,total);
  if($('trendChart')) renderTrendChart();
  if($('reorderAlerts')) renderReorderAlerts();
+ if($('delayedReminders')) renderDelayedReminders();
 }
 function snapshotDashboardHistory(open,delayed,completed,total){
  let hist=dashboardHistory(); let today=todayISO();
@@ -642,6 +704,34 @@ function renderReorderAlerts(){
  if(!alerts.length){ $('reorderAlerts').innerHTML='<p class="small">No products are currently below their reorder level — nothing needs immediate re-ordering.</p>'; return; }
  $('reorderAlerts').innerHTML=`<div class="table-wrap"><table><thead><tr><th>Product</th><th>Supplier</th><th>Reorder Level</th><th>Currently in Open POs</th><th></th></tr></thead><tbody>${alerts.slice(0,20).map(a=>`<tr><td><b>${esc(a.p.name)}</b><br><span class="small">${esc(a.p.size||'')}</span></td><td>${esc(supplierDisplayName(a.p.supplier))}</td><td>${a.p.reorder}</td><td><b style="color:var(--red)">${a.openQty}</b></td><td><button class="btn secondary" onclick="showView('create')">Create PO</button></td></tr>`).join('')}</tbody></table></div>`;
 }
+function renderDelayedReminders(){
+ let os=orders().filter(o=>isActivePO(o) && ['orange','red'].includes(ageClass(o)));
+ if(!os.length){ $('delayedReminders').innerHTML='<p class="small">No delayed purchase orders right now — nothing to remind.</p>'; return; }
+ let byVendor={};
+ os.forEach(o=>{
+  byVendor[o.vendor_id]=byVendor[o.vendor_id]||[];
+  byVendor[o.vendor_id].push(o);
+ });
+ let rows=Object.keys(byVendor).map(vid=>{
+  let v=vendors().find(x=>x.id===vid)||{}; let vos=byVendor[vid];
+  let maxAge=Math.max(...vos.map(o=>ageDays(o)));
+  let totalBalance=vos.reduce((s,o)=>s+dispatchTotals(o).balance,0);
+  return {v,vos,maxAge,totalBalance};
+ }).sort((a,b)=>b.maxAge-a.maxAge);
+ $('delayedReminders').innerHTML=`<div class="table-wrap"><table><thead><tr><th>Vendor</th><th>Delayed POs</th><th>Oldest Pending</th><th>Total Balance Qty</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.v.name||'Unknown Vendor')}</b></td><td>${r.vos.map(o=>o.po_no).join(', ')}</td><td><b style="color:var(--red)">${r.maxAge} days</b></td><td>${r.totalBalance}</td><td><button class="btn success" onclick="whatsappVendorReminder('${r.v.id}')">📲 Send Reminder</button></td></tr>`).join('')}</tbody></table></div><p class="small">Each button opens WhatsApp with a ready-made message for that vendor — click one vendor at a time (browsers block multiple pop-ups opened together).</p>`;
+}
+function whatsappVendorReminder(vendorId){
+ let v=vendors().find(x=>x.id===vendorId); if(!v){ alert('Vendor not found.'); return; }
+ let s=settings();
+ let os=orders().filter(o=>o.vendor_id===vendorId && isActivePO(o) && ['orange','red'].includes(ageClass(o)));
+ if(!os.length){ alert('No delayed purchase orders for this vendor right now.'); return; }
+ let lines=os.map(o=>{ let t=dispatchTotals(o); return `- ${o.po_no} (Due ${o.due_date}, ${ageDays(o)} days pending, balance qty ${t.balance})`; }).join('\n');
+ let msg=`Dear ${v.name||'Vendor'},\n\nThe following Purchase Order(s) from ${s.company||'us'} are pending and overdue:\n\n${lines}\n\nPlease dispatch at the earliest and update the vendor portal. Thank you.`;
+ let phone=(v.mobile||s.wa||'').replace(/\D/g,'');
+ if(!phone){ alert('This vendor has no mobile number saved. Please add one in Vendor Directory first.'); return; }
+ window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,'_blank');
+ if(typeof logActivity==='function') logActivity('Reminder Sent', 'WhatsApp delay reminder sent to '+v.name+' for '+os.length+' PO(s)');
+}
 
 function addPoItem(){
  const div=document.createElement('div'); div.className='item-row';
@@ -665,6 +755,15 @@ function createPO(draft=false){
   }
  });
  if(!items.length){$('createMsg').textContent='Please search and select at least one product.';return}
+ let dupNames=[]; let seenProducts=new Set();
+ items.forEach(it=>{ if(seenProducts.has(it.product_id)) dupNames.push(it.name); else seenProducts.add(it.product_id); });
+ if(dupNames.length){
+  $('createMsg').textContent='This product appears more than once in the same PO: '+[...new Set(dupNames)].join(', ')+'. Please remove the duplicate row or combine the quantity into a single row.';
+  return;
+ }
+ if(items.some(it=>it.qty<=0)){ $('createMsg').textContent='Quantity must be greater than 0 for every item.'; return; }
+ let dueDateVal=$('poDue').value;
+ if(dueDateVal && dueDateVal<todayISO() && !confirm('The expected delivery date ('+dueDateVal+') is in the past. Continue anyway?')) return;
  let os=orders();
  if(editingPoId){
   let o=os.find(x=>x.id===editingPoId);
@@ -750,6 +849,59 @@ function orderTable(os){
   return `<tr><td class="mono"><b>${o.po_no}</b></td><td>${o.date}<br><span class="small">Due: ${o.due_date}</span></td><td>${esc(v.name)}</td><td><span class="badge ${s}">${statusLabel(s)}</span></td><td><span class="badge age-${c}">${isActivePO(o)&&t.balance?ageDays(o)+' Days':(t.balance?'—':'Complete')}</span></td><td>${t.ordered}</td><td>${t.shipped}</td><td><b>${t.balance}</b></td><td>${actions}</td></tr>`;
  }).join('')+'</tbody></table></div>';
 }
+/* ===== Lightweight click-to-sort (Orders / Vendors / Products) ===== */
+let tableSortState={};
+const TABLE_RENDER_FNS={orders:()=>renderOrders(),vendors:()=>renderVendors(),products:()=>renderProducts()};
+function toggleSort(tableId,key){
+ let s=tableSortState[tableId]||{};
+ if(s.key===key){ s.dir=s.dir==='asc'?'desc':'asc'; } else { s.key=key; s.dir='asc'; }
+ tableSortState[tableId]=s;
+ if(TABLE_RENDER_FNS[tableId]) TABLE_RENDER_FNS[tableId]();
+}
+function sortArrow(tableId,key){
+ let s=tableSortState[tableId];
+ if(!s||s.key!==key) return '';
+ return s.dir==='asc' ? ' ▲' : ' ▼';
+}
+function sortHeader(tableId,key,label){
+ return `<th class="sortable-th" onclick="toggleSort('${tableId}','${key}')">${esc(label)}${sortArrow(tableId,key)}</th>`;
+}
+function applySort(tableId,rows,getters){
+ let s=tableSortState[tableId];
+ if(!s||!s.key||!getters[s.key]) return rows;
+ let get=getters[s.key];
+ return [...rows].sort((a,b)=>{
+  let av=get(a), bv=get(b);
+  if(typeof av==='number' && typeof bv==='number') return s.dir==='asc'?av-bv:bv-av;
+  av=String(av??'').toLowerCase(); bv=String(bv??'').toLowerCase();
+  if(av<bv) return s.dir==='asc'?-1:1;
+  if(av>bv) return s.dir==='asc'?1:-1;
+  return 0;
+ });
+}
+const ORDER_SORT_GETTERS={
+ po_no:o=>o.po_no,
+ date:o=>o.date,
+ vendor:o=>vendors().find(v=>v.id===o.vendor_id)?.name||'',
+ status:o=>statusLabel(status(o)),
+ ageing:o=>{let t=dispatchTotals(o); return isActivePO(o)&&t.balance?ageDays(o):-1;},
+ ordered:o=>dispatchTotals(o).ordered,
+ shipped:o=>dispatchTotals(o).shipped,
+ balance:o=>dispatchTotals(o).balance
+};
+function orderTableSortable(os){
+ if(!os.length)return '<p class="small">No purchase orders match the current filters.</p>';
+ os=applySort('orders',os,ORDER_SORT_GETTERS);
+ let head=`<tr>${sortHeader('orders','po_no','PO No')}${sortHeader('orders','date','Date / Due')}${sortHeader('orders','vendor','Vendor')}${sortHeader('orders','status','Status')}${sortHeader('orders','ageing','Ageing')}${sortHeader('orders','ordered','Ordered')}${sortHeader('orders','shipped','Shipped')}${sortHeader('orders','balance','Balance')}<th>Actions</th></tr>`;
+ return `<div class="table-wrap"><table><thead>${head}</thead><tbody>`+os.map(o=>{
+  let v=vendors().find(x=>x.id===o.vendor_id)||{}, t=dispatchTotals(o), c=ageClass(o), s=status(o);
+  let actions=`<button class="btn secondary" onclick="viewPO('${o.id}')">View</button> <button class="btn secondary" onclick="whatsappPO('${o.id}')">WhatsApp</button> <button class="btn secondary" onclick="editPO('${o.id}')">Edit</button>`;
+  if(s==='rejected'){ actions+=` <button class="btn success" onclick="reactivatePO('${o.id}')">Reactivate</button>`; }
+  else if(s!=='completed'){ actions+=` <button class="btn warn" onclick="cancelPO('${o.id}')">Cancel</button>`; }
+  actions+=` <button class="btn danger" onclick="deletePO('${o.id}')">Delete</button>`;
+  return `<tr><td class="mono"><b>${o.po_no}</b></td><td>${o.date}<br><span class="small">Due: ${o.due_date}</span></td><td>${esc(v.name)}</td><td><span class="badge ${s}">${statusLabel(s)}</span></td><td><span class="badge age-${c}">${isActivePO(o)&&t.balance?ageDays(o)+' Days':(t.balance?'—':'Complete')}</span></td><td>${t.ordered}</td><td>${t.shipped}</td><td><b>${t.balance}</b></td><td>${actions}</td></tr>`;
+ }).join('')+'</tbody></table></div>';
+}
 let ordersQuickFilter=null;
 function applyQuickFilter(kind){
  ordersQuickFilter=kind;
@@ -778,7 +930,7 @@ function renderOrders(){
  if($('ordersQuickFilterBar')){
   $('ordersQuickFilterBar').innerHTML = (ordersQuickFilter&&ordersQuickFilter!=='total') ? `<div class="notice">Showing: <b>${QUICK_FILTER_LABELS[ordersQuickFilter]||ordersQuickFilter}</b> — ${os.length} purchase order(s). <button class="btn secondary" onclick="clearQuickFilter()">Clear Filter</button></div>` : '';
  }
- $('ordersList').innerHTML=orderTable(os);
+ $('ordersList').innerHTML=orderTableSortable(os);
 }
 function viewPO(id){
  let o=orders().find(x=>x.id===id), v=vendors().find(x=>x.id===o.vendor_id)||{}, s=settings();
@@ -911,15 +1063,30 @@ function vendorDispatchAll(oid){
 
 function saveVendor(){
  let vs=vendors(); let id='v_'+Date.now();
+ let vname=($('vendorName').value||'').trim();
+ if(!vname){ alert('Please enter a vendor name.'); return; }
+ if(vs.some(v=>String(v.name||'').trim().toLowerCase()===vname.toLowerCase())){ if(!confirm('A vendor named "'+vname+'" already exists. Add another vendor with the same name anyway?')) return; }
+ let mobile=($('vendorMobile').value||'').trim();
+ if(mobile && !/^[0-9+\-\s]{7,15}$/.test(mobile)){ alert('Please enter a valid mobile number (digits only, 7-15 characters).'); return; }
+ let email=($('vendorEmail').value||'').trim();
+ if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ alert('Please enter a valid email address, or leave it blank.'); return; }
  let username=($('vendorUsername').value||'').trim();
  if(username && vs.some(v=>String(v.username||'').trim().toLowerCase()===username.toLowerCase())){alert('This Portal Login ID is already used by another vendor. Please choose a unique login ID.'); return;}
- let vname=$('vendorName').value;
- vs.push({id,name:vname,gst:$('vendorGst').value,mobile:$('vendorMobile').value,email:$('vendorEmail').value,credit:$('vendorCredit').value,rating:$('vendorRating').value,address:$('vendorAddress').value,username,password:$('vendorPassword').value||''});
+ vs.push({id,name:vname,gst:$('vendorGst').value,mobile,email,credit:$('vendorCredit').value,rating:$('vendorRating').value,address:$('vendorAddress').value,username,password:$('vendorPassword').value||''});
  set(K.vendors,vs); logActivity('Vendor Added', vname);
  ['vendorName','vendorGst','vendorMobile','vendorEmail','vendorAddress','vendorUsername','vendorPassword'].forEach(id=>$(id).value=''); renderAll();
 }
+const VENDOR_SORT_GETTERS={
+ name:v=>v.name||'', gst:v=>v.gst||'', mobile:v=>v.mobile||'', email:v=>v.email||'',
+ credit:v=>+v.credit||0, rating:v=>+v.rating||0, username:v=>v.username||''
+};
 function renderVendors(){
- let vs=vendors(); $('vendorTable').innerHTML=vs.length?`<div class="table-wrap"><table><thead><tr><th>Vendor</th><th>GSTIN</th><th>Mobile</th><th>Email</th><th>Credit Days</th><th>Rating</th><th>Login ID</th><th>Password</th><th></th></tr></thead><tbody>${vs.map(v=>`<tr><td><b>${esc(v.name)}</b><br><span class="small">${esc(v.address||'')}</span></td><td>${esc(v.gst)}</td><td>${esc(v.mobile)}</td><td>${esc(v.email)}</td><td>${esc(v.credit)}</td><td>${'★'.repeat(+v.rating||0)}</td><td class="mono">${esc(v.username||'—')}</td><td class="mono">${esc(v.password||'—')}</td><td><button class="btn danger" onclick="deleteVendor('${v.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="small">No vendors saved yet.</p>';
+ let allVs=vendors(); let vs=allVs;
+ let q=($('vendorSearch')?.value||'').toLowerCase();
+ if(q) vs=vs.filter(v=>[v.name,v.gst,v.mobile,v.email,v.username,v.address].join(' ').toLowerCase().includes(q));
+ vs=applySort('vendors',vs,VENDOR_SORT_GETTERS);
+ let head=`<tr>${sortHeader('vendors','name','Vendor')}${sortHeader('vendors','gst','GSTIN')}${sortHeader('vendors','mobile','Mobile')}${sortHeader('vendors','email','Email')}${sortHeader('vendors','credit','Credit Days')}${sortHeader('vendors','rating','Rating')}${sortHeader('vendors','username','Login ID')}<th>Password</th><th></th></tr>`;
+ $('vendorTable').innerHTML=vs.length?`<div class="table-wrap"><table><thead>${head}</thead><tbody>${vs.map(v=>`<tr><td><b>${esc(v.name)}</b><br><span class="small">${esc(v.address||'')}</span></td><td>${esc(v.gst)}</td><td>${esc(v.mobile)}</td><td>${esc(v.email)}</td><td>${esc(v.credit)}</td><td>${'★'.repeat(+v.rating||0)}</td><td class="mono">${esc(v.username||'—')}</td><td class="mono">${esc(v.password||'—')}</td><td><button class="btn danger" onclick="deleteVendor('${v.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div>`:(allVs.length?'<p class="small">No vendors match your search.</p>':'<p class="small">No vendors saved yet.</p>');
 }
 function deleteVendor(id){
  let v=vendors().find(x=>x.id===id); if(!v)return;
@@ -950,16 +1117,30 @@ function renderProductFilters(ps){
  $('productCategoryFilter').value=oc; $('productSupplierFilter').value=os;
  ['productCategoryFilter','productSupplierFilter','productStatusFilter','productSearch'].forEach(id=>{let el=$(id); if(el && !el.dataset.bound){el.addEventListener('input',renderProducts); el.dataset.bound='1'}});
 }
+const PRODUCT_SORT_GETTERS={
+ sku:p=>p.sku||'', name:p=>p.name||'', size:p=>p.size||'', cartonPacking:p=>p.cartonPacking||'',
+ category:p=>p.category||'', supplier:p=>p.supplier||'', uom:p=>p.uom||'', reorder:p=>+p.reorder||0
+};
 function renderProducts(){
  let all=products(); renderProductFilters(all); let ps=[...all];
  let cat=$('productCategoryFilter')?.value||'', sup=$('productSupplierFilter')?.value||'', st=$('productStatusFilter')?.value||'', q=($('productSearch')?.value||'').toLowerCase();
  if(cat)ps=ps.filter(p=>p.category===cat); if(sup)ps=ps.filter(p=>p.supplier===sup); if(st)ps=ps.filter(p=>(p.status||'Active')===st);
  if(q)ps=ps.filter(p=>[p.sku,p.name,p.size,p.cartonPacking,p.category,p.supplier].join(' ').toLowerCase().includes(q));
+ ps=applySort('products',ps,PRODUCT_SORT_GETTERS);
  let cats=[...new Set(all.map(p=>p.category).filter(Boolean))].length, sups=[...new Set(all.map(p=>p.supplier).filter(Boolean))].length;
  if($('productKpis'))$('productKpis').innerHTML=`<div class="kpi blue"><div class="n">${all.length}</div><div class="l">Total SKUs</div></div><div class="kpi green"><div class="n">${cats}</div><div class="l">Categories</div></div><div class="kpi orange"><div class="n">${sups}</div><div class="l">Suppliers</div></div><div class="kpi"><div class="n">${ps.length}</div><div class="l">Filtered Records</div></div>`;
- $('productTable').innerHTML=ps.length?`<div class="table-wrap"><table><thead><tr><th>SKU</th><th>Product</th><th>Size</th><th>Carton Packing</th><th>Category</th><th>Supplier</th><th>UOM</th><th>Reorder</th><th></th></tr></thead><tbody>${ps.map(p=>`<tr><td class="mono">${esc(p.sku||'')}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.size||'')}</td><td>${esc(p.cartonPacking||'')}</td><td>${esc(p.category||'')}</td><td>${esc(p.supplier||'')}</td><td>${esc(p.uom||'')}</td><td>${p.reorder||0}</td><td><button class="btn danger" onclick="deleteProduct('${p.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="small">No products saved yet.</p>';
+ let head=`<tr>${sortHeader('products','sku','SKU')}${sortHeader('products','name','Product')}${sortHeader('products','size','Size')}${sortHeader('products','cartonPacking','Carton Packing')}${sortHeader('products','category','Category')}${sortHeader('products','supplier','Supplier')}${sortHeader('products','uom','UOM')}${sortHeader('products','reorder','Reorder')}<th></th></tr>`;
+ $('productTable').innerHTML=ps.length?`<div class="table-wrap"><table><thead>${head}</thead><tbody>${ps.map(p=>`<tr><td class="mono">${esc(p.sku||'')}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.size||'')}</td><td>${esc(p.cartonPacking||'')}</td><td>${esc(p.category||'')}</td><td>${esc(p.supplier||'')}</td><td>${esc(p.uom||'')}</td><td>${p.reorder||0}</td><td><button class="btn danger" onclick="deleteProduct('${p.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="small">No products match your search.</p>';
 }
-function deleteProduct(id){set(K.products,products().filter(p=>p.id!==id)); renderAll()}
+function deleteProduct(id){
+ let p=products().find(x=>x.id===id); if(!p)return;
+ let usedInPOs=orders().some(o=>o.items.some(i=>i.product_id===id));
+ let msg=usedInPOs ? 'This product appears in one or more existing Purchase Orders. Deleting it from Product Master will not affect those POs, but you will no longer be able to select it for new POs. Continue?' : 'Delete product "'+p.name+'"?';
+ if(!confirm(msg)) return;
+ set(K.products,products().filter(x=>x.id!==id));
+ if(typeof logActivity==='function') logActivity('Product Deleted', p.name);
+ renderAll();
+}
 
 $('productImport').addEventListener('change',async e=>{
  let file=e.target.files[0]; if(!file)return; let wb; if(file.name.endsWith('.csv')) wb=XLSX.read(await file.text(),{type:'string'}); else wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
@@ -1051,6 +1232,49 @@ function savePasswordSettings(){
  set(K.settings,{...s,adminPassword:newAdmin,buyerPassword:newBuyer});
  logActivity('Password Changed','Admin and/or Buyer login password was updated');
  alert('Passwords updated. Next time the Buyer role is selected, the new password will be required.');
+}
+function exportFullBackup(){
+ let backup={
+  meta:{app:'ProcureFlow ERP',exportedAt:new Date().toISOString(),version:1},
+  products:products(), vendors:vendors(), orders:orders(), settings:settings(), auditLog:auditLog(), dashboardHistory:dashboardHistory()
+ };
+ let blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+ let url=URL.createObjectURL(blob);
+ let a=document.createElement('a');
+ a.href=url; a.download='procureflow-backup-'+todayISO()+'.json';
+ document.body.appendChild(a); a.click(); a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),2000);
+ if(typeof logActivity==='function') logActivity('Backup Downloaded', backup.products.length+' products, '+backup.vendors.length+' vendors, '+backup.orders.length+' purchase orders');
+ $('backupInfoText').textContent='Backup downloaded: '+backup.products.length+' products, '+backup.vendors.length+' vendors, '+backup.orders.length+' purchase orders.';
+}
+function restoreFullBackup(input){
+ let file=input.files[0]; if(!file) return;
+ let reader=new FileReader();
+ reader.onload=function(e){
+  let data;
+  try{ data=JSON.parse(e.target.result); }
+  catch(err){ alert('This file is not a valid backup (could not read JSON).'); input.value=''; return; }
+  if(!data || !Array.isArray(data.products) || !Array.isArray(data.vendors) || !Array.isArray(data.orders)){
+   alert('This does not look like a ProcureFlow backup file.'); input.value=''; return;
+  }
+  let summary='This will REPLACE all current data with the backup:\n\n'+
+   data.products.length+' products\n'+data.vendors.length+' vendors\n'+data.orders.length+' purchase orders\n\n'+
+   'Your current data will be permanently overwritten. Continue?';
+  if(!confirm(summary)){ input.value=''; return; }
+  set(K.products, data.products||[]);
+  set(K.vendors, data.vendors||[]);
+  set(K.orders, data.orders||[]);
+  if(data.settings) set(K.settings, data.settings);
+  if(Array.isArray(data.auditLog)) set(K.auditLog, data.auditLog);
+  if(Array.isArray(data.dashboardHistory)) set(K.dashboardHistory, data.dashboardHistory);
+  if(typeof logActivity==='function') logActivity('Backup Restored', 'Data restored from backup file taken on '+(data.meta&&data.meta.exportedAt||'unknown date'));
+  $('backupInfoText').textContent='Backup restored successfully: '+data.products.length+' products, '+data.vendors.length+' vendors, '+data.orders.length+' purchase orders.';
+  alert('Backup restored successfully. The page will now reload.');
+  input.value='';
+  location.reload();
+ };
+ reader.onerror=function(){ alert('Could not read this file.'); input.value=''; };
+ reader.readAsText(file);
 }
 function renderActivityLog(){
  if(!$('activityLogList')) return;
